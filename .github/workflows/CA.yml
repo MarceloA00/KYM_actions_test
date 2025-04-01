@@ -1,0 +1,50 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Iniciar sesión en Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Construir y subir imagen a Docker Hub
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: tu_usuario_docker/deployment-pipeline:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Instalar kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: latest
+
+      - name: Configurar Kubeconfig
+        run: echo "${{ secrets.KUBECONFIG }}" > kubeconfig && export KUBECONFIG=kubeconfig
+
+      - name: Instalar Helm
+        uses: azure/setup-helm@v3
+
+      - name: Desplegar con Helm
+        run: |
+          helm upgrade --install deployment-pipeline helm-chart --values helm-chart/values.yaml
